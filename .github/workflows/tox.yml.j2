@@ -1,0 +1,114 @@
+name: Test with Ansible
+
+on:
+  push: {}
+  pull_request: {}
+  schedule:
+    - cron: '12 0 * * *'
+
+env:
+  TOX_ANSIBLE_DRIVER: docker
+  ANSIBLE_COLLECTIONS_PATHS: ~/.ansible/:~/work/
+  checkout_path: ansible_collections/{{ namespace }}/{{ collection_name }}
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    outputs:
+      scenarios: {% raw %}${{ steps.collection.outputs.scenarios }}{% endraw %}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Setup pip cache
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: pip-modules
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+      - name: Install dependencies
+        run: |
+          set -ex
+          python -m pip install --upgrade pip
+          pip install tox tox-ansible
+      - name: collect depenencies
+        id: collection
+        run: |
+          set -ex
+          json="["
+          for x in $(tox -l --ansible-driver docker); do
+            json="${json}\"${x}\","
+          done
+          json="${json%,}]"
+          echo "::set-output name=scenarios::${json}"
+
+  build:
+    needs: collect
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: {% raw %}${{ fromJson(needs.collect.outputs.scenarios) }}{% endraw %}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          path: {% raw %}${{ env.checkout_path }}{% endraw %}
+      - name: update submodules to latest
+        run: |
+          cd {% raw %}"${{ env.checkout_path }}"{% endraw %}
+          git submodule update --remote --recursive
+      - name: Setup pip cache
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: pip-modules
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+      - name: Install dependencies
+        run: |
+          set -ex
+          python -m pip install --upgrade pip
+          pip install tox tox-ansible
+      - name: Rune tox against {% raw %}${{ matrix.scenario }}{% endraw %}
+        run: |
+          set -ex
+          # There is some magic in the "mv" command that makes ansible-galaxy work
+          # I haven't found any logic for it, but if you don't do this mv, then
+          # the dependency step in molecule when run from tox will fail
+          mv ansible_collections ~/work/
+          {% raw %}cd ~/work/${{ env.checkout_path }}{% endraw %}
+          tox -e {% raw %}${{ matrix.scenario }}{% endraw %}
+
+  release:
+    needs: build  # Only release if the build is good
+    if: startsWith(github.ref, 'refs/tags/')  # Only release if there is a tag that's been pushed to the repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+      - name: Install pip
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+      - name: Create release artifacts
+        run: |
+          ansible-galaxy collection build
+          ansible-galaxy collection publish *.tar.gz --api-key {% raw %}${{ secrets.GALAXY_API_KEY }}{% endraw %}
+      - name: Release artifacts to Git Hub
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: ./{{ namespace }}-{{ collection_name }}*.tar.gz
+          allowUpdates: true
+          name: Rlease {% raw %}${{ github.ref }}{% endraw %}
+          token: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
