@@ -18,6 +18,10 @@ jobs:
         with:
           repository: oasis-roles/meta_skeleton
           path: meta_skeleton
+      - uses: actions/checkout@v2
+        with:
+          repository: oasis-roles/meta_test
+          path: tests
       - uses: actions/setup-python@v1
       - name: install dependencies
         run: |-
@@ -37,5 +41,5 @@ jobs:
           ansible-galaxy init --role-skeleton "${{ github.workspace }}/meta_skeleton" test_role
           # Run molecule
           cd ..
-          git clone https://github.com/oasis-roles/meta_tests tests
+          mv "${{ github.workspace }}/tests" tests
           tox --ansible-driver docker
