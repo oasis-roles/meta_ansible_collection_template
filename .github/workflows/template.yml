@@ -2,6 +2,8 @@ name: Test that this repo works when it's a template
 
 on:
   push: {}
+  schedule:
+    - cron: '49 13 * * *'
 
 jobs:
   do_template:
