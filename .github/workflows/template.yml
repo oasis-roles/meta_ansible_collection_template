@@ -37,5 +37,5 @@ jobs:
           ansible-galaxy init --role-skeleton "${{ github.workspace }}/meta_skeleton" test_role
           # Run molecule
           cd ..
-          git submodule add https://github.com/oasis-roles/meta_tests tests
+          git clone https://github.com/oasis-roles/meta_tests tests
           tox --ansible-driver docker
