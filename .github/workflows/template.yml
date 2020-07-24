@@ -2,6 +2,7 @@ name: Test that this repo works when it's a template
 
 on:
   push: {}
+  pull_request:
   schedule:
     - cron: '49 13 * * *'
 
@@ -39,6 +40,10 @@ jobs:
           cd test_ns/test_collection/roles
           # Create a test role
           ansible-galaxy init --role-skeleton "${{ github.workspace }}/meta_skeleton" test_role
+          echo "
+
+          def test_true(host):
+              assert 1 == 1" > test_role/molecule/docker/tests/test_null.py
           # Run molecule
           cd ..
           mv "${{ github.workspace }}/tests" tests
