@@ -28,7 +28,7 @@ jobs:
         run: |-
           set -ex
           python -m pip install -U setuptools pip
-          pip install -U ansible tox tox-ansible
+          pip install -U ansible tox
       - name: test collection works well
         run: |-
           set -ex
